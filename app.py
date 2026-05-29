@@ -3,20 +3,23 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 CSS 애니메이션
-st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🎈", layout="centered")
+# 1. 페이지 설정 및 CSS 애니메이션 (타이틀 일치 및 하강 속도 조절 완료)
+st.set_page_config(page_title="아진T와 함께하는 물풍선 단어 게임", page_icon="🎈", layout="centered")
 
 st.markdown("""
     <style>
     .stApp {
         background-color: #f7f9fc;
     }
+    
+    /* 물풍선 속도를 천천히 내려오도록 변경 (9s ~ 12s) */
     @keyframes fallDown {
         0% { transform: translateY(-100px); opacity: 0; }
         10% { opacity: 1; }
         90% { opacity: 1; }
         100% { transform: translateY(350px); opacity: 0; }
     }
+    
     .balloon-container {
         display: flex;
         justify-content: center;
@@ -42,9 +45,11 @@ st.markdown("""
         display: inline-block;
         position: relative;
     }
-    .b1 { animation: fallDown 4.5s linear infinite; }
-    .b2 { animation: fallDown 6.0s linear infinite; animation-delay: 1.5s; }
-    .b3 { animation: fallDown 5.2s linear infinite; animation-delay: 0.5s; }
+    
+    /* 천천히 쏟아지도록 가속도 밀도 조절 */
+    .b1 { animation: fallDown 9.0s linear infinite; }
+    .b2 { animation: fallDown 12.0s linear infinite; animation-delay: 3.0s; }
+    .b3 { animation: fallDown 10.5s linear infinite; animation-delay: 1.0s; }
     
     .score-box {
         font-size: 18px;
@@ -65,8 +70,8 @@ def load_data():
         return pd.read_csv("data.csv")
     except:
         return pd.DataFrame({
-            "word": ["observe", "giant", "information", "harmony", "travel", "save"],
-            "meaning": ["관찰하다", "거인", "정보", "조화", "이동하다", "구하다"]
+            "word": ["observe", "giant", "information", "harmony", "ocean"],
+            "meaning": ["관찰하다", "거인", "정보", "조화", "대양, 바다"]
         })
 
 df = load_data()
@@ -101,7 +106,7 @@ def refresh_balloons():
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
-    st.title("🎈 물풍선 단어 맞추기 게임")
+    st.title("🎈 아진T와 함께하는 물풍선 단어 게임")
     st.write("내려오는 물풍선 속 영단어의 뜻을 맞춰보세요!")
     
     name_input = st.text_input("이름을 입력하세요:", value=st.session_state.user_name)
@@ -128,18 +133,16 @@ else:
         st.balloons()
         st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 합산 점수는 **{st.session_state.score}점**입니다.")
         
-        # 다시 하기 버튼
         if st.button("다시 도전하기"):
             st.session_state.game_started = False
             st.session_state.start_time = None
             st.rerun()
             
-        # ★여기에만 '단어학습하기' 버튼 배치
         st.write("---")
         main_col, side_col = st.columns([4, 1])
         with side_col:
             if st.button("📚 단어학습하기", use_container_width=True):
-                @st.dialog("📖 오늘 배운 영단어 리스트")
+                @st.dialog("📖 오늘 배울 영단어 리스트")
                 def show_study_records():
                     st.write("오늘 게임에 나온 단어들을 다시 복습하며 실력을 다져봅시다!")
                     st.table(df[["word", "meaning"]])
@@ -170,8 +173,13 @@ else:
         
         if user_answer:
             answered_correctly = False
+            input_ans = user_answer.strip()
+            
             for b in st.session_state.active_words:
-                if user_answer.strip() == b["meaning"].strip():
+                # 복수 정답 처리 로직 (쉼표 분리)
+                valid_meanings = [m.strip() for m in b["meaning"].split(",")]
+                
+                if input_ans in valid_meanings:
                     st.success(f"💥 펑! '{b['word']}' 정답입니다! (+1점)")
                     st.session_state.score += 1
                     answered_correctly = True
@@ -183,6 +191,6 @@ else:
             if not answered_correctly:
                 st.error("❌ 틀렸습니다! 바닥에 닿기 전에 다시 입력해보세요.")
         
-        # 1초마다 화면 강제 리프레시 (타이머 작동용)
+        # 1초마다 화면 강제 리프레시 (타이머 동기화용)
         time.sleep(1)
         st.rerun()
