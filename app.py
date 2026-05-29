@@ -3,77 +3,108 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 기본 설정 및 알록달록한 CSS 디자인
+# 1. 페이지 설정 및 CSS 애니메이션
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🎈", layout="centered")
 
 st.markdown("""
     <style>
-    .balloon {
-        font-size: 24px;
-        font-weight: bold;
-        padding: 20px;
-        border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
-        display: inline-block;
-        animation: float Down 5s linear infinite;
-        text-align: center;
-        box-shadow: inset -10px -10px 20px rgba(0,0,0,0.2);
-        color: white;
+    .stApp {
+        background-color: #f7f9fc;
     }
-    .score-box {
+    @keyframes fallDown {
+        0% { transform: translateY(-100px); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translateY(350px); opacity: 0; }
+    }
+    .balloon-container {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        height: 380px;
+        overflow: hidden;
+        background: #eef2f7;
+        border-radius: 15px;
+        padding: 20px;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+        position: relative;
+    }
+    .balloon {
         font-size: 20px;
         font-weight: bold;
-        background-color: #f0f2f6;
-        padding: 10px;
-        border-radius: 10px;
+        color: white;
+        width: 110px;
+        height: 130px;
+        line-height: 100px;
         text-align: center;
+        border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+        box-shadow: inset -8px -8px 15px rgba(0,0,0,0.2), 0 5px 10px rgba(0,0,0,0.1);
+        display: inline-block;
+        position: relative;
+    }
+    .b1 { animation: fallDown 4.5s linear infinite; }
+    .b2 { animation: fallDown 6.0s linear infinite; animation-delay: 1.5s; }
+    .b3 { animation: fallDown 5.2s linear infinite; animation-delay: 0.5s; }
+    
+    .score-box {
+        font-size: 18px;
+        font-weight: bold;
+        background-color: white;
+        padding: 12px;
+        border-radius: 12px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# 2. CSV 데이터 로드 기능 (data.csv 파일이 같은 경로에 있다고 가정)
+# 2. 데이터 로드
 @st.cache_data
 def load_data():
     try:
-        df = pd.read_csv("data.csv")
-        return df
+        return pd.read_csv("data.csv")
     except:
-        # 데이터 파일이 없을 경우를 대비한 샘플 데이터
         return pd.DataFrame({
-            "word": ["observe", "giant", "information", "harmony"],
-            "meaning": ["관찰하다", "거인", "정보", "조화"]
+            "word": ["observe", "giant", "information", "harmony", "travel", "save"],
+            "meaning": ["관찰하다", "거인", "정보", "조화", "이동하다", "구하다"]
         })
 
 df = load_data()
 
-# 3. 세션 상태(Session State) 초기화
+# 3. 세션 상태 초기화
 if "game_started" not in st.session_state:
     st.session_state.game_started = False
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 if "score" not in st.session_state:
     st.session_state.score = 0
-if "current_idx" not in st.session_state:
-    st.session_state.current_idx = 0
 if "start_time" not in st.session_state:
-    st.session_state.start_time = 0
-if "balloon_color" not in st.session_state:
-    st.session_state.balloon_color = "#FF4B4B"
+    st.session_state.start_time = None
+if "active_words" not in st.session_state:
+    st.session_state.active_words = []
 
-# 알록달록한 물풍선 색상 리스트
-COLORS = ["#FF4B4B", "#1C83E1", "#00D4B2", "#FFD166", "#9B5DE5", "#F15BB5"]
+COLORS = ["#FF595E", "#FFCA3A", "#8AC926", "#1982C4", "#6A4C93", "#FF60B5"]
 
-def next_word():
-    st.session_state.current_idx = random.randint(0, len(df) - 1)
-    st.session_state.balloon_color = random.choice(COLORS)
+def refresh_balloons():
+    sample_size = min(3, len(df))
+    selected = df.sample(n=sample_size).to_dict(orient="records")
+    st.session_state.active_words = []
+    for i, item in enumerate(selected):
+        st.session_state.active_words.append({
+            "word": item["word"],
+            "meaning": item["meaning"],
+            "color": COLORS[i % len(COLORS)],
+            "class": f"b{i+1}"
+        })
 
 # --- 화면 구현 ---
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
-    st.title("🐋 아진T의 영단어 연구소")
-    st.subheader("물풍선 단어 맞추기 게임 🎈")
+    st.title("🎈 물풍선 단어 맞추기 게임")
+    st.write("내려오는 물풍선 속 영단어의 뜻을 맞춰보세요!")
     
-    name_input = st.text_input("연구원 이름을 입력하세요:", value=st.session_state.user_name)
+    name_input = st.text_input("이름을 입력하세요:", value=st.session_state.user_name)
     
     if st.button("Start", use_container_width=True):
         if name_input.strip() == "":
@@ -83,31 +114,42 @@ if not st.session_state.game_started:
             st.session_state.game_started = True
             st.session_state.start_time = time.time()
             st.session_state.score = 0
-            next_word()
+            refresh_balloons()
             st.rerun()
 
 # [화면 2] 게임 시작 후 화면
 else:
-    # 80초 제한 시간 계산
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, 80 - int(elapsed_time))
     
-    # [게임 오버 조건] 제한 시간 종료
+    # [게임 종료 조건] 80초 끝 ➡️ 점수 공개 및 단어학습 버튼 활성화
     if remaining_time <= 0:
-        st.title("🚨 Game Over!")
+        st.title("🚨 It's over.")
         st.balloons()
-        st.error(f"It's over. {st.session_state.user_name} 연구원의 최종 합산 점수는 **{st.session_state.score}점**입니다!")
+        st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 합산 점수는 **{st.session_state.score}점**입니다.")
         
+        # 다시 하기 버튼
         if st.button("다시 도전하기"):
             st.session_state.game_started = False
+            st.session_state.start_time = None
             st.rerun()
+            
+        # ★여기에만 '단어학습하기' 버튼 배치
+        st.write("---")
+        main_col, side_col = st.columns([4, 1])
+        with side_col:
+            if st.button("📚 단어학습하기", use_container_width=True):
+                @st.dialog("📖 오늘 배운 영단어 리스트")
+                def show_study_records():
+                    st.write("오늘 게임에 나온 단어들을 다시 복습하며 실력을 다져봅시다!")
+                    st.table(df[["word", "meaning"]])
+                show_study_records()
             
     # [게임 진행 중]
     else:
-        # 대시보드 표시 (이름, 점수, 남은 시간)
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"<div class='score-box'>👤 연구원: {st.session_state.user_name}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
         with col2:
             st.markdown(f"<div class='score-box'>⭐ SCORE: {st.session_state.score}점</div>", unsafe_allow_html=True)
         with col3:
@@ -115,44 +157,32 @@ else:
             
         st.write("---")
         
-        # 현재 맞춰야 할 단어 정보
-        current_word = df.iloc[st.session_state.current_idx]["word"]
-        correct_meaning = df.iloc[st.session_state.current_idx]["meaning"]
-        
-        # 물풍선 시각화 (알록달록한 색상 반영)
-        st.markdown(f"""
-            <div style='text-align: center; margin-top: 50px; margin-bottom: 50px;'>
-                <div class='balloon' style='background-color: {st.session_state.balloon_color}; width: 160px; height: 180px; line-height: 140px;'>
-                    {current_word}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        # 🎈 쏟아져 내려오는 물풍선
+        b_html = "<div class='balloon-container'>"
+        for b in st.session_state.active_words:
+            b_html += f"<div class='balloon {b['class']}' style='background-color: {b['color']};'>{b['word']}</div>"
+        b_html += "</div>"
+        st.markdown(b_html, unsafe_allow_html=True)
         
         # 정답 입력창
-        user_answer = st.text_input("이 단어의 뜻은 무엇일까요?", key=f"ans_{st.session_state.score}", placeholder="정답을 입력하고 엔터를 누르세요")
+        st.write("")
+        user_answer = st.text_input("화면에 보이는 단어 중 하나의 뜻을 입력하고 Enter를 누르세요:", key=f"input_{st.session_state.score}")
         
-        # 정답 검증 메커니즘
         if user_answer:
-            if user_answer.strip() == correct_meaning.strip():
-                st.success("💥 펑! 정답입니다! (+1점)")
-                st.session_state.score += 1
-                time.sleep(0.5) # 정답 이펙트를 잠시 보여줌
-                next_word()
-                st.rerun()
-            else:
-                st.error("❌ 틀렸습니다! 물풍선이 내려오고 있어요! 다시 입력해보세요.")
-
-# --- 하단 공통 영역: 단어 학습하기 창 (Modal) ---
-st.write("")
-st.write("")
-main_col, side_col = st.columns([4, 1])
-
-with side_col:
-    # 오른쪽 하단에 '단어학습하기' 버튼 배치
-    if st.button("📚 단어학습하기", use_container_width=True):
-        # 별도의 모달창(dialog) 형태로 데이터 프레임 노출
-        @st.dialog("📖 오늘 배울 영단어 리스트")
-        def show_study_records():
-            st.write("게임에 나오기 전에 단어들을 다시 한번 복습해봅시다!")
-            st.table(df[["word", "meaning"]])
-        show_study_records()
+            answered_correctly = False
+            for b in st.session_state.active_words:
+                if user_answer.strip() == b["meaning"].strip():
+                    st.success(f"💥 펑! '{b['word']}' 정답입니다! (+1점)")
+                    st.session_state.score += 1
+                    answered_correctly = True
+                    time.sleep(0.4)
+                    refresh_balloons()
+                    st.rerun()
+                    break
+            
+            if not answered_correctly:
+                st.error("❌ 틀렸습니다! 바닥에 닿기 전에 다시 입력해보세요.")
+        
+        # 1초마다 화면 강제 리프레시 (타이머 작동용)
+        time.sleep(1)
+        st.rerun()
