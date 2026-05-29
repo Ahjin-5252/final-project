@@ -3,7 +3,7 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 CSS 애니메이션 (타이틀 일치 및 하강 속도 조절 완료)
+# 1. 페이지 설정 및 애니메이션 (정중앙 팝업 피드백 디자인 추가)
 st.set_page_config(page_title="아진T와 함께하는 물풍선 단어 게임", page_icon="🎈", layout="centered")
 
 st.markdown("""
@@ -12,7 +12,7 @@ st.markdown("""
         background-color: #f7f9fc;
     }
     
-    /* 물풍선 속도를 천천히 내려오도록 변경 (9s ~ 12s) */
+    /* 물풍선 느린 하강 애니메이션 */
     @keyframes fallDown {
         0% { transform: translateY(-100px); opacity: 0; }
         10% { opacity: 1; }
@@ -46,7 +46,6 @@ st.markdown("""
         position: relative;
     }
     
-    /* 천천히 쏟아지도록 가속도 밀도 조절 */
     .b1 { animation: fallDown 9.0s linear infinite; }
     .b2 { animation: fallDown 12.0s linear infinite; animation-delay: 3.0s; }
     .b3 { animation: fallDown 10.5s linear infinite; animation-delay: 1.0s; }
@@ -60,6 +59,29 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
+
+    /* 🎯 화면 정중앙 팝업 피드백 스타일 */
+    .popup-feedback {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+        padding: 30px 60px;
+        border-radius: 20px;
+        font-size: 32px;
+        font-weight: bold;
+        color: white;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        animation: popEffect 0.5s ease-out;
+    }
+    @keyframes popEffect {
+        0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+        100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+    .popup-success { background-color: #4BB543; }
+    .popup-error { background-color: #FF3333; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -87,6 +109,8 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "active_words" not in st.session_state:
     st.session_state.active_words = []
+if "feedback" not in st.session_state:
+    st.session_state.feedback = None
 
 COLORS = ["#FF595E", "#FFCA3A", "#8AC926", "#1982C4", "#6A4C93", "#FF60B5"]
 
@@ -119,6 +143,7 @@ if not st.session_state.game_started:
             st.session_state.game_started = True
             st.session_state.start_time = time.time()
             st.session_state.score = 0
+            st.session_state.feedback = None
             refresh_balloons()
             st.rerun()
 
@@ -127,7 +152,7 @@ else:
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, 80 - int(elapsed_time))
     
-    # [게임 종료 조건] 80초 끝 ➡️ 점수 공개 및 단어학습 버튼 활성화
+    # [게임 종료 조건] 80초 끝
     if remaining_time <= 0:
         st.title("🚨 It's over.")
         st.balloons()
@@ -136,6 +161,7 @@ else:
         if st.button("다시 도전하기"):
             st.session_state.game_started = False
             st.session_state.start_time = None
+            st.session_state.feedback = None
             st.rerun()
             
         st.write("---")
@@ -160,10 +186,21 @@ else:
             
         st.write("---")
         
-        # 🎈 쏟아져 내려오는 물풍선
-        b_html = "<div class='balloon-container'>"
+        # 🎈 쏟아져 내려오는 물풍선과 🎯 정중앙 피드백 컨테이너
+        b_html = "<div class='balloon-container' style='position: relative;'>"
+        
+        # 만약 정답/오답 피드백 상태가 활성화되어 있다면 화면 한가운데에 팝업을 띄움
+        if st.session_state.feedback == "success":
+            b_html += "<div class='popup-feedback popup-success'>💥 정답 💖</div>"
+        elif st.session_state.feedback == "error":
+            b_html += "<div class='popup-feedback popup-error'>다시 해보세요 🔥</div>"
+            
         for b in st.session_state.active_words:
+            # 정답을 맞춘 순간에는 물풍선이 터진 효과를 주기 위해 화면에서 잠시 가려줌
+            if st.session_state.feedback == "success":
+                continue
             b_html += f"<div class='balloon {b['class']}' style='background-color: {b['color']};'>{b['word']}</div>"
+            
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
@@ -176,20 +213,31 @@ else:
             input_ans = user_answer.strip()
             
             for b in st.session_state.active_words:
-                # 복수 정답 처리 로직 (쉼표 분리)
                 valid_meanings = [m.strip() for m in b["meaning"].split(",")]
                 
                 if input_ans in valid_meanings:
-                    st.success(f"💥 펑! '{b['word']}' 정답입니다! (+1점)")
                     st.session_state.score += 1
+                    st.session_state.feedback = "success"  # 정답 하트 팝업 트리거
                     answered_correctly = True
-                    time.sleep(0.4)
-                    refresh_balloons()
-                    st.rerun()
                     break
             
             if not answered_correctly:
-                st.error("❌ 틀렸습니다! 바닥에 닿기 전에 다시 입력해보세요.")
+                st.session_state.feedback = "error"  # 화이팅 팝업 트리거
+            
+            # 피드백 오버레이를 화면 정중앙에 선명하게 보여주기 위해 강제 리프레시
+            st.rerun()
+        
+        # 피드백이 노출된 상태라면 0.6초간 보여준 뒤 원래 화면으로 복구
+        if st.session_state.feedback in ["success", "error"]:
+            time.sleep(0.6)
+            if st.session_state.feedback == "success":
+                refresh_balloons() # 정답일 때만 풍선 목록 새로고침
+            st.session_state.feedback = None
+            st.rerun()
+        else:
+            # 평소에는 1초마다 타이머 갱신
+            time.sleep(1)
+            st.rerun()
         
         # 1초마다 화면 강제 리프레시 (타이머 동기화용)
         time.sleep(1)
