@@ -137,14 +137,12 @@ def check_answer_callback():
                 break
     st.session_state.game_input_box = ""
 
-# 💡 표준 미국식 발음(Standard American Accent) 오디오 생성 함수
-def play_us_pronunciation(text):
-    # lang='en', tld='com' 조합이 gTTS에서 구글 US(미국) 표준 영어 발음을 의미합니다.
+# 💡 [수정] 오디오 바이너리 데이터를 안전하게 브라우저로 전달하는 로직
+def get_us_audio_bytes(text):
     tts = gTTS(text=text, lang='en', tld='com', slow=False)
     fp = io.BytesIO()
     tts.write_to_fp(fp)
-    fp.seek(0)
-    return fp
+    return fp.getvalue() # 오디오 스트림을 고정된 바이트 배열로 추출하여 전달
 
 # --- 화면 구현 ---
 
@@ -189,14 +187,12 @@ else:
         st.write("---")
         main_col, side_col = st.columns([4, 1])
         with side_col:
-            # 💡 제한 시간이 끝난 뒤 복습 모달 호출
             if st.button("📚 단어학습하기", use_container_width=True):
                 @st.dialog("📖 오늘 배울 영단어 리스트 (미국식 발음 지원)")
                 def show_study_records():
                     st.write("단어 옆의 재생 버튼을 누르면 미국식 표준 발음을 들을 수 있습니다!")
                     st.write("")
                     
-                    # 학생들이 보기 편하도록 표 디자인 대신 오디오 매칭 레이아웃으로 변경
                     for index, row in df_origin.iterrows():
                         col_word, col_meaning, col_audio = st.columns([2, 2, 3])
                         with col_word:
@@ -204,10 +200,9 @@ else:
                         with col_meaning:
                             st.write(row['meaning'])
                         with col_audio:
-                            # gTTS 오디오 스트림 가져오기
-                            audio_fp = play_us_pronunciation(row['word'])
-                            # 미니 오디오 플레이어 탑재
-                            st.audio(audio_fp, format="audio/mp3")
+                            # 💡 [수정] 오디오 포인터가 초기화되지 않도록 완전히 정형화된 바이트 값 전송
+                            audio_bytes = get_us_audio_bytes(row['word'])
+                            st.audio(audio_bytes, format="audio/mp3")
                         st.write("---")
                 show_study_records()
             
