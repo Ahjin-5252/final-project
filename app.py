@@ -59,7 +59,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
 
-    /* 🎯 화면 정중앙 팝업 피드백 스타일 */
+    /* 🎯 화면 정중앙 팝업 피드백 스타일 (0.2초만에 반응하도록 속도감 상승) */
     .popup-feedback {
         position: absolute;
         top: 50%;
@@ -73,7 +73,7 @@ st.markdown("""
         color: white;
         text-align: center;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        animation: popEffect 0.4s ease-out;
+        animation: popEffect 0.2s ease-out;
     }
     @keyframes popEffect {
         0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
@@ -112,25 +112,22 @@ if "feedback" not in st.session_state:
     st.session_state.feedback = None
 if "word_pool" not in st.session_state:
     st.session_state.word_pool = []
+# 입력칸 자동 비우기용 세션 키 추가
+if "input_value" not in st.session_state:
+    st.session_state.input_value = ""
 
 COLORS = ["#FF595E", "#FFCA3A", "#8AC926", "#1982C4", "#6A4C93", "#FF60B5"]
 
-# 🔄 중복 없는 완전 랜덤 순환 풀 매니저 함수
+# 중복 없는 완전 랜덤 순환 풀 매니저 함수
 def refresh_balloons(matched_word=None):
-    # 정답을 맞춘 단어가 있다면 전체 단어 데이터 풀(word_pool)에서 완전히 영구 제외
     if matched_word and matched_word in st.session_state.word_pool:
         st.session_state.word_pool.remove(matched_word)
         
-    # 만약 풀이 비었거나 남아있는 단어가 3개 미만이면 원본 데이터에서 다시 채워서 섞음
     if len(st.session_state.word_pool) < 3:
         st.session_state.word_pool = df_origin.to_dict(orient="records")
         random.shuffle(st.session_state.word_pool)
         
-    # 현재 화면에 떠 있는 단어들과 중복되지 않게 무작위로 3개 추출
     selected = st.session_state.word_pool[:3]
-    
-    # 다음 턴을 위해 방금 사용된 3개 단어는 리스트의 맨 뒤로 보내서 순환 유도
-    # (단, 정답을 맞춘 단어는 위에서 원천 제외되었으므로 오답/미입력 단어들만 순환됨)
     st.session_state.word_pool = st.session_state.word_pool[3:] + selected
     
     st.session_state.active_words = []
@@ -214,7 +211,6 @@ else:
             b_html += "<div class='popup-feedback popup-error'>다시 해보세요 🔥</div>"
             
         for b in st.session_state.active_words:
-            # 정답 처리 순간에는 풍선이 터지는 이펙트를 위해 숨김
             if st.session_state.feedback == "success":
                 continue
             b_html += f"<div class='balloon {b['class']}' style='background-color: {b['color']};'>{b['word']}</div>"
@@ -222,18 +218,20 @@ else:
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 정답 입력창 (오답 제출 시 입력창 초기화를 위해 score와 무관하게 고정 키 할당)
+        # 정답 입력창 (value 값을 세션 상태와 바인딩하여 자동으로 비워지도록 유도)
         st.write("")
-        user_answer = st.text_input("화면에 보이는 단어 중 하나의 뜻을 입력하고 Enter를 누르세요:", key="game_input_box")
+        user_answer = st.text_input(
+            "화면에 보이는 단어 중 하나의 뜻을 입력하고 Enter를 누르세요:", 
+            value=st.session_state.input_value, 
+            key="game_input_box"
+        )
         
-        # 피드백 오버레이 제어 제어 루틴 (Sleep 후 상태 클리어 및 강제 리프레시)
+        # ⏱️ 피드백 제어 루틴 (요청하신대로 0.2초간만 잠깐 보여주고 스쳐 지나감)
         if st.session_state.feedback in ["success", "error"]:
-            time.sleep(0.7)  # 피드백 박스가 정중앙에 머무는 시간
+            time.sleep(0.2)  # 기존 0.7초 -> 0.2초로 단축
             if st.session_state.feedback == "success":
-                # 정답 맞춘 단어는 풀에서 완전 제거 타겟팅
                 refresh_balloons(matched_word=st.session_state.target_word)
             else:
-                # 틀렸을 경우에는 현재 조합을 유지하지 않고 요청대로 '새로운 단어들'이 내려오도록 풀 순환 교체
                 refresh_balloons()
                 
             st.session_state.feedback = None
@@ -249,7 +247,6 @@ else:
                 if input_ans in valid_meanings:
                     st.session_state.score += 1
                     st.session_state.feedback = "success"
-                    # 맞춘 타겟 단어 임시 세션 기록
                     st.session_state.target_word = {"word": b["word"], "meaning": b["meaning"]}
                     answered_correctly = True
                     break
@@ -257,8 +254,10 @@ else:
             if not answered_correctly:
                 st.session_state.feedback = "error"
             
+            # 🧼 [핵심] 엔터를 친 직후 검증이 끝났으므로 텍스트 상자 안을 공란으로 강제 초기화
+            st.session_state.input_value = ""
             st.rerun()
         
-        # 평소 타이머 흐름 제어 (1초씩 차감 후 강제 동기화)
+        # 평소 타이머 흐름 제어
         time.sleep(1)
         st.rerun()
