@@ -4,11 +4,11 @@ import random
 import time
 
 # 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
-st.set_page_config(page_title="아진T와 함께하는 물풍선 단어 게임", page_icon="🎈", layout="centered")
+st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🎈", layout="centered")
 
 st.markdown("""
     <style>
-    /* 배경을 완전히 하얗고 깨끗하게 설정 (이미지 느낌 반영) */
+    /* 배경을 완전히 하얗고 깨끗하게 설정 */
     .stApp {
         background-color: #ffffff;
     }
@@ -41,9 +41,9 @@ st.markdown("""
         padding-top: 20px;
     }
     
-    /* 물풍선 도형을 없애고 '단어 글자 자체'만 깔끔하게 동동 뜨게 하는 스타일 */
+    /* 단어 글자 자체만 깔끔하게 동동 뜨게 하는 스타일 */
     .floating-word {
-        font-size: 26px; /* 글씨 크기를 키워 가독성 확보 */
+        font-size: 26px; 
         font-weight: 600;
         font-family: 'Helvetica Neue', sans-serif;
         text-align: center;
@@ -53,7 +53,7 @@ st.markdown("""
         user-select: none;
     }
     
-    /* 각 단어별로 내려오는 타이밍과 속도를 다르게 주어 자연스러운 흐름 생성 */
+    /* 각 단어별 내려오는 속도 다르게 분할 */
     .w1 { animation: fallDown 10.0s linear infinite; }
     .w2 { animation: fallDown 13.0s linear infinite; animation-delay: 3.5s; }
     .w3 { animation: fallDown 11.5s linear infinite; animation-delay: 1.5s; }
@@ -63,7 +63,7 @@ st.markdown("""
         animation: splashEffect 0.3s ease-out forwards !important;
     }
     
-    /* 상단 스코어 보드도 배경과 어우러지게 미니멀하게 변경 */
+    /* 상단 대시보드 미니멀 스타일화 */
     .score-box {
         font-size: 16px;
         font-weight: 500;
@@ -110,7 +110,7 @@ if "input_value" not in st.session_state:
 if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
 
-# 이미지에 있던 감성적인 폰트 색상들 반영 (하늘색, 핑크색, 연두색 등 감성 파스텔톤)
+# 감성 폰트 컬러 풀
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
 def refresh_balloons(matched_word=None):
@@ -158,11 +158,13 @@ if not st.session_state.game_started:
 
 # [화면 2] 게임 시작 후 화면
 else:
+    # 절대 시간 기준으로 경과 시간 체크
     elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = max(0, 80 - int(elapsed_time))
+    remaining_time = max(0, 70 - int(elapsed_time)) # 💡 기존 80초에서 70초로 단축 완료
     
+    # [게임 종료 조건] 70초 타임아웃
     if remaining_time <= 0:
-        st.title("🚨 It's over.")
+        st.title("🚨 Game Over") # 💡 문구 수정 완료
         st.balloons()
         st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 합산 점수는 **{st.session_state.score}점**입니다.")
         
@@ -184,34 +186,31 @@ else:
                 show_study_records()
             
     else:
-        # 상단 대시보드 (텍스트 위주로 미니멀하게 처리)
-        col1, col2, col3 = st.columns(3)
+        # 💡 타이머가 들어가던 col3 컬럼을 제거하여 화면에서 완벽히 은닉(시각적 제거)
+        col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
         with col2:
             st.markdown(f"<div class='score-box'>⭐ SCORE: {st.session_state.score}점</div>", unsafe_allow_html=True)
-        with col3:
-            st.markdown(f"<div class='score-box'>⏱️ TIME: {remaining_time}초</div>", unsafe_allow_html=True)
             
         st.write("---")
         
-        # 캔버스 렌더링 (도형 없이 글자만 둥둥 떠다니는 이미지 느낌 구현)
+        # 캔버스 렌더링
         b_html = "<div class='game-canvas'>"
         for b in st.session_state.active_words:
             if st.session_state.just_popped_word == b["word"]:
-                # 정답 시 글자가 옆으로 퍼지며 흐릿해지는 이펙트
                 b_html += f"<div class='floating-word popped-word' style='color: {b['color']};'>{b['word']}</div>"
             else:
                 b_html += f"<div class='floating-word {b['class']}' style='color: {b['color']};'>{b['word']}</div>"
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 정답 입력창 (이미지 하단 둥근 입력창 형태 유지)
+        # 정답 입력창 (Type here... 가이드 제공)
         user_answer = st.text_input(
             "", 
             value=st.session_state.input_value, 
             key="game_input_box",
-            placeholder="Type here..." # 이미지와 똑같이 매칭
+            placeholder="Type here..."
         )
         
         if st.session_state.just_popped_word:
@@ -225,7 +224,6 @@ else:
             input_ans = user_answer.strip()
             
             for b in st.session_state.active_words:
-                valid_meanings = [m.strip() for m in m_item in b["meaning"].split(",") for m_item in [m]] # 안전 쉼표 분할
                 valid_meanings = [m.strip() for m in b["meaning"].split(",")]
                 
                 if input_ans in valid_meanings:
@@ -238,5 +236,6 @@ else:
             st.session_state.input_value = ""
             st.rerun()
         
+        # 보이지 않는 타이머 동기화를 위해 백엔드는 0.4초 프레임으로 유지
         time.sleep(0.4)
         st.rerun()
