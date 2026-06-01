@@ -68,7 +68,6 @@ st.markdown("""
         margin-top: 30px;
     }
 
-    /* 🔊 발음 재생 버튼 스타일링 */
     .tts-button {
         background-color: #2AM2FF;
         color: white;
@@ -114,10 +113,16 @@ if "used_words" not in st.session_state:
     st.session_state.used_words = []
 if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
+# 💡 [보완 1] NameError 방지를 위해 세션 시작 시 popped_index를 기본값(None)으로 안전하게 미리 생성합니다.
+if "popped_index" not in st.session_state:
+    st.session_state.popped_index = None
 
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
 def replace_single_word(index_to_replace):
+    if index_to_replace is None: # 예외 방지 안전장치
+        return
+        
     remaining_pool = [
         item for item in df_origin.to_dict(orient="records")
         if item["word"] not in st.session_state.used_words
@@ -167,25 +172,23 @@ def check_answer_callback():
                 break
     st.session_state.game_input_box = ""
 
-# 💡 [핵심 구현] 브라우저 자체 음성 합성 엔진(Web Speech API)을 호출하는 HTML/JS 생성 함수
+# 브라우저 웹 스치피 API 발음 자바스크립트 생성 함수
 def generate_browser_tts_html(text, btn_id):
-    # 미국식 표준 영어(en-US) 발음을 브라우저에 직접 지시하는 자바스크립트 코드
     html_code = f"""
     <button class="tts-button" onclick="speak_{btn_id}()">🔊 Listen</button>
     <script>
-    def speak_{btn_id}() {{
+    function speak_{btn_id}() {{
         if ('speechSynthesis' in window) {{
-            window.speechSynthesis.cancel(); // 이전 음성 겹침 방지
+            window.speechSynthesis.cancel();
             var speech = new SpeechSynthesisUtterance("{text}");
-            speech.lang = "en-US"; // 표준 미국식 액센트 지정
-            speech.rate = 0.9;     // 학생들이 듣기 편하도록 살짝 여유로운 속도
+            speech.lang = "en-US";
+            speech.rate = 0.9;
             speech.pitch = 1.0;
             window.speechSynthesis.speak(speech);
         }} else {{
             alert("이 브라우저는 음성 재생을 지원하지 않습니다.");
         }}
     }}
-    speak_{btn_id}();
     </script>
     """
     return html_code
@@ -208,6 +211,7 @@ if not st.session_state.game_started:
             st.session_state.start_time = time.time()
             st.session_state.score = 0
             st.session_state.just_popped_word = None
+            st.session_state.popped_index = None # 시작 시 초기화
             init_game_words()
             st.rerun()
 
@@ -225,6 +229,7 @@ else:
             st.session_state.game_started = False
             st.session_state.start_time = None
             st.session_state.just_popped_word = None
+            st.session_state.popped_index = None
             st.session_state.active_words = []
             st.session_state.used_words = []
             st.rerun()
@@ -245,7 +250,6 @@ else:
                         with col_meaning:
                             st.write(row['meaning'])
                         with col_audio:
-                            # 💡 브라우저 내장 자바스크립트 스피커 버튼을 화면에 직접 임베딩
                             tts_html = generate_browser_tts_html(row['word'], index)
                             st.components.v1.html(tts_html, height=45)
                         st.write("---")
@@ -279,10 +283,13 @@ else:
             on_change=check_answer_callback
         )
         
-        if st.session_state.just_popped_word:
+        # 💡 [보완 2] 세션 상태에 popped_index가 실존하고, 실제 터진 단어가 명시되었을 때만 정밀 교체가 돌도록 방어막을 칩니다.
+        p_idx = st.session_state.get("popped_index", None)
+        if st.session_state.just_popped_word and p_idx is not None:
             time.sleep(0.3)
-            refresh_balloons(st.session_state.popped_index)
+            replace_single_word(p_idx)
             st.session_state.just_popped_word = None
+            st.session_state.popped_index = None # 교체 완료 후 초기화
             st.rerun()
         
         time.sleep(0.4)
