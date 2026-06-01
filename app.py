@@ -3,7 +3,7 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 애니메이션
+# 1. 페이지 설정 및 물풍선 터짐(Splash) 애니메이션 정의
 st.set_page_config(page_title="아진T와 함께하는 물풍선 단어 게임", page_icon="🎈", layout="centered")
 
 st.markdown("""
@@ -12,11 +12,19 @@ st.markdown("""
         background-color: #f7f9fc;
     }
     
+    /* 물풍선이 천천히 하강하는 애니메이션 */
     @keyframes fallDown {
         0% { transform: translateY(-100px); opacity: 0; }
         10% { opacity: 1; }
         90% { opacity: 1; }
         100% { transform: translateY(350px); opacity: 0; }
+    }
+    
+    /* 💦 정답 시 물풍선이 터지며 물이 튀는 이펙트 애니메이션 */
+    @keyframes splashEffect {
+        0% { transform: scale(1); opacity: 1; filter: hue-rotate(0deg); }
+        50% { transform: scale(1.4); opacity: 0.8; border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+        100% { transform: scale(1.8); opacity: 0; filter: blur(5px); }
     }
     
     .balloon-container {
@@ -31,6 +39,7 @@ st.markdown("""
         box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
         position: relative;
     }
+    
     .balloon {
         font-size: 20px;
         font-weight: bold;
@@ -45,9 +54,15 @@ st.markdown("""
         position: relative;
     }
     
+    /* 각 풍선 인덱스별로 개별 하강 속도 및 딜레이 바인딩 (물풍선+단어 조합 일치화) */
     .b1 { animation: fallDown 9.0s linear infinite; }
     .b2 { animation: fallDown 12.0s linear infinite; animation-delay: 3.0s; }
     .b3 { animation: fallDown 10.5s linear infinite; animation-delay: 1.0s; }
+    
+    /* 정답 처리된 특정 풍선에만 일시적으로 발동하는 터짐 스플래시 스타일 */
+    .popped-balloon {
+        animation: splashEffect 0.4s ease-out forwards !important;
+    }
     
     .score-box {
         font-size: 18px;
@@ -58,29 +73,6 @@ st.markdown("""
         text-align: center;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
-
-    /* 🎯 화면 정중앙 팝업 피드백 스타일 (0.2초만에 반응하도록 속도감 상승) */
-    .popup-feedback {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 9999;
-        padding: 30px 60px;
-        border-radius: 20px;
-        font-size: 32px;
-        font-weight: bold;
-        color: white;
-        text-align: center;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        animation: popEffect 0.2s ease-out;
-    }
-    @keyframes popEffect {
-        0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-        100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-    }
-    .popup-success { background-color: #4BB543; }
-    .popup-error { background-color: #FF3333; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -108,17 +100,17 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "active_words" not in st.session_state:
     st.session_state.active_words = []
-if "feedback" not in st.session_state:
-    st.session_state.feedback = None
 if "word_pool" not in st.session_state:
     st.session_state.word_pool = []
-# 입력칸 자동 비우기용 세션 키 추가
 if "input_value" not in st.session_state:
     st.session_state.input_value = ""
+# 터뜨릴 풍선의 단어를 추적하기 위한 키
+if "just_popped_word" not in st.session_state:
+    st.session_state.just_popped_word = None
 
 COLORS = ["#FF595E", "#FFCA3A", "#8AC926", "#1982C4", "#6A4C93", "#FF60B5"]
 
-# 중복 없는 완전 랜덤 순환 풀 매니저 함수
+# [물풍선+단어] 세트 자체를 통째로 랜덤 생성하는 함수
 def refresh_balloons(matched_word=None):
     if matched_word and matched_word in st.session_state.word_pool:
         st.session_state.word_pool.remove(matched_word)
@@ -135,7 +127,7 @@ def refresh_balloons(matched_word=None):
         st.session_state.active_words.append({
             "word": item["word"],
             "meaning": item["meaning"],
-            "color": COLORS[i % len(COLORS)],
+            "color": COLORS[random.randint(0, len(COLORS)-1)], # 색상도 완전 무작위 셔플
             "class": f"b{i+1}"
         })
 
@@ -156,7 +148,7 @@ if not st.session_state.game_started:
             st.session_state.game_started = True
             st.session_state.start_time = time.time()
             st.session_state.score = 0
-            st.session_state.feedback = None
+            st.session_state.just_popped_word = None
             st.session_state.word_pool = df_origin.to_dict(orient="records")
             random.shuffle(st.session_state.word_pool)
             refresh_balloons()
@@ -176,7 +168,7 @@ else:
         if st.button("다시 도전하기"):
             st.session_state.game_started = False
             st.session_state.start_time = None
-            st.session_state.feedback = None
+            st.session_state.just_popped_word = None
             st.session_state.word_pool = []
             st.rerun()
             
@@ -202,23 +194,18 @@ else:
             
         st.write("---")
         
-        # 🎈 물풍선 및 🎯 정중앙 팝업 렌더링 컨테이너
-        b_html = "<div class='balloon-container' style='position: relative;'>"
-        
-        if st.session_state.feedback == "success":
-            b_html += "<div class='popup-feedback popup-success'>💥 정답 💖</div>"
-        elif st.session_state.feedback == "error":
-            b_html += "<div class='popup-feedback popup-error'>다시 해보세요 🔥</div>"
-            
+        # 🎈 물풍선 컨테이너 렌더링
+        b_html = "<div class='balloon-container'>"
         for b in st.session_state.active_words:
-            if st.session_state.feedback == "success":
-                continue
-            b_html += f"<div class='balloon {b['class']}' style='background-color: {b['color']};'>{b['word']}</div>"
-            
+            # 정답을 맞춘 단어 물리 세트라면 스플래시 효과 클래스(`popped-balloon`)를 주어 물이 튀며 증발하게 함
+            if st.session_state.just_popped_word == b["word"]:
+                b_html += f"<div class='balloon popped-balloon' style='background-color: {b['color']};'>{b['word']}</div>"
+            else:
+                b_html += f"<div class='balloon {b['class']}' style='background-color: {b['color']};'>{b['word']}</div>"
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 정답 입력창 (value 값을 세션 상태와 바인딩하여 자동으로 비워지도록 유도)
+        # 정답 입력창
         st.write("")
         user_answer = st.text_input(
             "화면에 보이는 단어 중 하나의 뜻을 입력하고 Enter를 누르세요:", 
@@ -226,15 +213,11 @@ else:
             key="game_input_box"
         )
         
-        # ⏱️ 피드백 제어 루틴 (요청하신대로 0.2초간만 잠깐 보여주고 스쳐 지나감)
-        if st.session_state.feedback in ["success", "error"]:
-            time.sleep(0.2)  # 기존 0.7초 -> 0.2초로 단축
-            if st.session_state.feedback == "success":
-                refresh_balloons(matched_word=st.session_state.target_word)
-            else:
-                refresh_balloons()
-                
-            st.session_state.feedback = None
+        # 💥 정답을 맞췄을 때 물풍선 파괴 딜레이 루틴 (0.3초간 스플래시 연출 후 즉시 다음 세트 전환)
+        if st.session_state.just_popped_word:
+            time.sleep(0.3)
+            refresh_balloons(matched_word=st.session_state.target_item)
+            st.session_state.just_popped_word = None
             st.rerun()
             
         if user_answer:
@@ -246,18 +229,16 @@ else:
                 
                 if input_ans in valid_meanings:
                     st.session_state.score += 1
-                    st.session_state.feedback = "success"
-                    st.session_state.target_word = {"word": b["word"], "meaning": b["meaning"]}
+                    st.session_state.just_popped_word = b["word"] # 터뜨릴 애니메이션 타겟 지정
+                    st.session_state.target_item = {"word": b["word"], "meaning": b["meaning"]}
                     answered_correctly = True
                     break
             
-            if not answered_correctly:
-                st.session_state.feedback = "error"
-            
-            # 🧼 [핵심] 엔터를 친 직후 검증이 끝났으므로 텍스트 상자 안을 공란으로 강제 초기화
+            # 틀렸을 경우에는 아무런 피드백 박스나 리프레시 없이 물풍선이 그대로 유지됨
+            # 입력값만 🧼 공란으로 초기화하여 재입력을 유도함
             st.session_state.input_value = ""
             st.rerun()
         
-        # 평소 타이머 흐름 제어
+        # 평소 타이머 흐름 제어 (1초씩 갱신)
         time.sleep(1)
         st.rerun()
