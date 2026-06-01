@@ -3,7 +3,7 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의 (조이스틱 이모지 반영)
+# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
 
 st.markdown("""
@@ -137,7 +137,7 @@ def refresh_balloons(matched_word=None):
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
-    st.title("🕹️ 아진T와 함께하는 단어 게임") # 💡 타이틀 및 조이스틱 이모지 반영 완료
+    st.title("🕹️ 아진T와 함께하는 단어 게임")
     st.write("내려오는 영단어의 뜻을 맞춰보세요!")
     
     name_input = st.text_input("이름을 입력하세요:", value=st.session_state.user_name)
@@ -185,7 +185,7 @@ else:
                 show_study_records()
             
     else:
-        # 상단 대시보드 (타이머 없이 이름과 점수만 노출)
+        # 상단 대시보드 (이름과 점수만 노출)
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
@@ -204,7 +204,7 @@ else:
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 정답 입력창 (Type here... 가이드 제공)
+        # 정답 입력창 (Type here...)
         user_answer = st.text_input(
             "", 
             value=st.session_state.input_value, 
@@ -212,28 +212,7 @@ else:
             placeholder="Type here..."
         )
         
+        # 정답 시 스플래시 대기 루틴
         if st.session_state.just_popped_word:
             time.sleep(0.3)
             refresh_balloons(matched_word=st.session_state.target_item)
-            st.session_state.just_popped_word = None
-            st.rerun()
-            
-        if user_answer:
-            answered_correctly = False
-            input_ans = user_answer.strip()
-            
-            for b in st.session_state.active_words:
-                valid_meanings = [m.strip() for m in b["meaning"].split(",")]
-                
-                if input_ans in valid_meanings:
-                    st.session_state.score += 1
-                    st.session_state.just_popped_word = b["word"]
-                    st.session_state.target_item = {"word": b["word"], "meaning": b["meaning"]}
-                    answered_correctly = True
-                    break
-            
-            st.session_state.input_value = ""
-            st.rerun()
-        
-        time.sleep(0.4)
-        st.rerun()
