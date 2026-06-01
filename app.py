@@ -3,7 +3,7 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
+# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의 (조이스틱 이모지 반영)
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
 
 st.markdown("""
@@ -137,7 +137,7 @@ def refresh_balloons(matched_word=None):
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
-    st.title("🎈 아진T와 함께하는 물풍선 단어 게임")
+    st.title("🕹️ 아진T와 함께하는 단어 게임") # 💡 타이틀 및 조이스틱 이모지 반영 완료
     st.write("내려오는 영단어의 뜻을 맞춰보세요!")
     
     name_input = st.text_input("이름을 입력하세요:", value=st.session_state.user_name)
@@ -158,13 +158,12 @@ if not st.session_state.game_started:
 
 # [화면 2] 게임 시작 후 화면
 else:
-    # 절대 시간 기준으로 경과 시간 체크
     elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = max(0, 70 - int(elapsed_time)) # 💡 기존 80초에서 70초로 단축 완료
+    remaining_time = max(0, 70 - int(elapsed_time))
     
     # [게임 종료 조건] 70초 타임아웃
     if remaining_time <= 0:
-        st.title("🚨 Game Over") # 💡 문구 수정 완료
+        st.title("🚨 Game Over")
         st.balloons()
         st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 합산 점수는 **{st.session_state.score}점**입니다.")
         
@@ -186,7 +185,7 @@ else:
                 show_study_records()
             
     else:
-        # 💡 타이머가 들어가던 col3 컬럼을 제거하여 화면에서 완벽히 은닉(시각적 제거)
+        # 상단 대시보드 (타이머 없이 이름과 점수만 노출)
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
@@ -236,6 +235,5 @@ else:
             st.session_state.input_value = ""
             st.rerun()
         
-        # 보이지 않는 타이머 동기화를 위해 백엔드는 0.4초 프레임으로 유지
         time.sleep(0.4)
         st.rerun()
