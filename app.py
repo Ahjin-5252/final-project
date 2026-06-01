@@ -3,17 +3,15 @@ import pandas as pd
 import random
 import time
 
-# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
+# 1. 페이지 설정 및 미니멀 UI/애니메이션 정의
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
 
 st.markdown("""
     <style>
-    /* 배경을 완전히 하얗고 깨끗하게 설정 */
     .stApp {
         background-color: #ffffff;
     }
     
-    /* 단어들이 위에서 아래로 천천히 내려오는 애니메이션 */
     @keyframes fallDown {
         0% { transform: translateY(-50px); opacity: 0; }
         10% { opacity: 1; }
@@ -21,14 +19,12 @@ st.markdown("""
         100% { transform: translateY(320px); opacity: 0; }
     }
     
-    /* 정답 시 사방으로 퍼지며 사라지는 이펙트 */
     @keyframes splashEffect {
         0% { transform: scale(1); opacity: 1; letter-spacing: 0px; }
         50% { transform: scale(1.3); opacity: 0.5; letter-spacing: 4px; }
         100% { transform: scale(1.6); opacity: 0; filter: blur(4px); }
     }
     
-    /* 캔버스 컨테이너 (테두리 없이 투명하고 깔끔하게) */
     .game-canvas {
         display: flex;
         justify-content: center;
@@ -41,7 +37,6 @@ st.markdown("""
         padding-top: 20px;
     }
     
-    /* 단어 글자 자체만 깔끔하게 동동 뜨게 하는 스타일 */
     .floating-word {
         font-size: 26px; 
         font-weight: 600;
@@ -53,17 +48,14 @@ st.markdown("""
         user-select: none;
     }
     
-    /* 각 단어별 내려오는 속도 다르게 분할 */
     .w1 { animation: fallDown 10.0s linear infinite; }
     .w2 { animation: fallDown 13.0s linear infinite; animation-delay: 3.5s; }
     .w3 { animation: fallDown 11.5s linear infinite; animation-delay: 1.5s; }
     
-    /* 정답 단어 터짐 이펙트 */
     .popped-word {
         animation: splashEffect 0.3s ease-out forwards !important;
     }
     
-    /* 상단 대시보드 미니멀 스타일화 */
     .score-box {
         font-size: 16px;
         font-weight: 500;
@@ -72,7 +64,6 @@ st.markdown("""
         padding: 5px;
     }
     
-    /* 입력창 상단 여백 조절 */
     div.stTextInput {
         margin-top: 30px;
     }
@@ -86,8 +77,8 @@ def load_data():
         return pd.read_csv("data.csv")
     except:
         return pd.DataFrame({
-            "word": ["observe", "giant", "information", "harmony", "ocean", "travel", "save", "glottal", "syllable structure"],
-            "meaning": ["관찰하다", "거인", "정보", "조화", "대양, 바다", "이동하다", "구하다", "성문의", "음절 구조"]
+            "word": ["observe", "giant", "information", "harmony", "ocean", "travel", "save", "leaf"],
+            "meaning": ["관찰하다", "거인", "정보", "조화", "대양, 바다", "이동하다", "구하다", "잎"]
         })
 
 df_origin = load_data()
@@ -105,12 +96,9 @@ if "active_words" not in st.session_state:
     st.session_state.active_words = []
 if "word_pool" not in st.session_state:
     st.session_state.word_pool = []
-if "input_value" not in st.session_state:
-    st.session_state.input_value = ""
 if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
 
-# 감성 폰트 컬러 풀
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
 def refresh_balloons(matched_word=None):
@@ -132,6 +120,21 @@ def refresh_balloons(matched_word=None):
             "color": COLORS[random.randint(0, len(COLORS)-1)],
             "class": f"w{i+1}"
         })
+
+# 💡 [해결의 핵심] 엔터를 쳤을 때 오작동 없이 값을 검증하고 즉시 비우는 안전 콜백 함수
+def check_answer_callback():
+    user_answer = st.session_state.game_input_box.strip()
+    if user_answer:
+        for b in st.session_state.active_words:
+            valid_meanings = [m.strip() for m in b["meaning"].split(",")]
+            
+            if user_answer in valid_meanings:
+                st.session_state.score += 1
+                st.session_state.just_popped_word = b["word"]
+                st.session_state.target_item = {"word": b["word"], "meaning": b["meaning"]}
+                break
+    # 채점이 끝나면 세션 내 입력창 위젯 텍스트를 즉시 공백으로 리셋
+    st.session_state.game_input_box = ""
 
 # --- 화면 구현 ---
 
@@ -161,7 +164,6 @@ else:
     elapsed_time = time.time() - st.session_state.start_time
     remaining_time = max(0, 70 - int(elapsed_time))
     
-    # [게임 종료 조건] 70초 타임아웃
     if remaining_time <= 0:
         st.title("🚨 Game Over")
         st.balloons()
@@ -185,7 +187,7 @@ else:
                 show_study_records()
             
     else:
-        # 상단 대시보드 (이름과 점수만 노출)
+        # 상단 대시보드
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
@@ -204,15 +206,20 @@ else:
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 정답 입력창 (Type here...)
-        user_answer = st.text_input(
+        # 💡 정답 입력창 (on_change 콜백 함수를 연결하여 무조건 채점 후 비워지도록 제어)
+        st.text_input(
             "", 
-            value=st.session_state.input_value, 
             key="game_input_box",
-            placeholder="Type here..."
+            placeholder="Type here...",
+            on_change=check_answer_callback
         )
         
-        # 정답 시 스플래시 대기 루틴
+        # 정답 단어 애니메이션 연출을 위한 딜레이 루틴
         if st.session_state.just_popped_word:
             time.sleep(0.3)
             refresh_balloons(matched_word=st.session_state.target_item)
+            st.session_state.just_popped_word = None
+            st.rerun()
+        
+        time.sleep(0.4)
+        st.rerun()
