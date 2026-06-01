@@ -69,6 +69,12 @@ st.markdown("""
     div.stTextInput {
         margin-top: 30px;
     }
+
+    /* 🎨 정답(파란색) / 오답(빨간색) 및 미니 버튼 서식 정의 */
+    .txt-correct { color: #0066CC !important; font-weight: bold; }
+    .txt-wrong { color: #FF3333 !important; font-weight: bold; font-size: 14px; }
+    
+    .canvas-input-container { margin-top: 0px !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -102,6 +108,10 @@ if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
 if "popped_index" not in st.session_state:
     st.session_state.popped_index = None
+
+# 🧠 [신규 확장] 단어장 인터랙티브 상태 관리를 위한 딕셔너리 초기화
+if "study_states" not in st.session_state:
+    st.session_state.study_states = {}
 
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
@@ -158,7 +168,7 @@ def check_answer_callback():
                 break
     st.session_state.game_input_box = ""
 
-# 💡 [gTTS 복구 및 안정화] 오디오 바이너리 데이터를 가상 메모리에 보존하여 반환하는 함수
+# gTTS 오디오 변환 함수
 def get_us_audio_bytes(text):
     tts = gTTS(text=text, lang='en', tld='com', slow=False)
     fp = io.BytesIO()
@@ -204,30 +214,100 @@ else:
             st.session_state.popped_index = None
             st.session_state.active_words = []
             st.session_state.used_words = []
+            st.session_state.study_states = {} # 단어장 상태 초기화
             st.rerun()
             
         st.write("---")
         main_col, side_col = st.columns([4, 1])
         with side_col:
             if st.button("📚 단어학습하기", use_container_width=True):
-                @st.dialog("📖 오늘 배울 영단어 리스트 (미국식 발음 지원)")
+                # 💡 요구사항 반영 1: 다이얼로그 타이틀을 깔끔하게 'Word List'로 변경
+                @st.dialog("📖 Word List")
                 def show_study_records():
-                    st.write("단어 옆의 재생 버튼을 누르면 미국식 표준 발음이 나옵니다!")
-                    st.write("")
+                    st.write("지우기 버튼을 누르면 단어나 뜻이 빈칸으로 변합니다. 직접 맞춰보세요!")
+                    st.write("---")
                     
                     for index, row in df_origin.iterrows():
-                        col_word, col_meaning, col_audio = st.columns([2, 2, 3])
+                        clean_word = str(row['word']).strip("* ")
+                        clean_meaning = str(row['meaning']).strip()
                         
-                        # 특수문자 ** 및 양끝 공백을 깔끔하게 제거한 상태로 텍스트 출력
-                        with col_word:
-                            clean_word = str(row['word']).strip("* ")
-                            st.write(clean_word)
+                        # 각 행별 상태 키 값 고정 생성
+                        w_key = f"w_{index}"
+                        m_key = f"m_{index}"
+                        
+                        if w_key not in st.session_state.study_states:
+                            st.session_state.study_states[w_key] = {"mode": "show", "status": "none"}
+                        if m_key not in st.session_state.study_states:
+                            st.session_state.study_states[m_key] = {"mode": "show", "status": "none"}
                             
-                        with col_meaning:
-                            st.write(row['meaning'])
-                            
-                        # 💡 [gTTS 컴포넌트 탑재] 오디오 재생 바 렌더링
-                        with col_audio:
+                        # 레이아웃 배치 컬럼 (단어영역 3 | 뜻영역 3 | 발음영역 2)
+                        col_word_area, col_meaning_area, col_audio_area = st.columns([3, 3, 2])
+                        
+                        # 🅰️ [영어 단어 영역 제어]
+                        with col_word_area:
+                            state = st.session_state.study_states[w_key]
+                            if state["mode"] == "show":
+                                inner_c1, inner_c2 = st.columns([3, 1.5])
+                                with inner_c1:
+                                    if state["status"] == "correct":
+                                        st.markdown(f"<span class='txt-correct'>{clean_word}</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.write(clean_word)
+                                with inner_c2:
+                                    if st.button("지우기", key=f"btn_del_w_{index}", size="small"):
+                                        st.session_state.study_states[w_key] = {"mode": "edit", "status": "none"}
+                                        st.rerun()
+                            else:
+                                in_val = st.text_input("단어 입력", key=f"ans_w_{index}", placeholder="Type...", label_visibility="collapsed")
+                                c_btn, c_cancel = st.columns(2)
+                                with c_btn:
+                                    if st.button("확인", key=f"chk_w_{index}"):
+                                        if in_val.strip().lower() == clean_word.lower():
+                                            st.session_state.study_states[w_key] = {"mode": "show", "status": "correct"}
+                                        else:
+                                            st.session_state.study_states[w_key]["status"] = "wrong"
+                                        st.rerun()
+                                with c_cancel:
+                                    if st.button("취소", key=f"cnl_w_{index}"):
+                                        st.session_state.study_states[w_key] = {"mode": "show", "status": "none"}
+                                        st.rerun()
+                                if state["status"] == "wrong":
+                                    st.markdown("<span class='txt-wrong'>❌ 다시 해보세요!</span>", unsafe_allow_html=True)
+                        
+                        # 🅱️ [뜻 영역 제어]
+                        with col_meaning_area:
+                            state_m = st.session_state.study_states[m_key]
+                            if state_m["mode"] == "show":
+                                inner_m1, inner_m2 = st.columns([3, 1.5])
+                                with inner_m1:
+                                    if state_m["status"] == "correct":
+                                        st.markdown(f"<span class='txt-correct'>{clean_meaning}</span>", unsafe_allow_html=True)
+                                    else:
+                                        st.write(clean_meaning)
+                                with inner_m2:
+                                    if st.button("지우기", key=f"btn_del_m_{index}", size="small"):
+                                        st.session_state.study_states[m_key] = {"mode": "edit", "status": "none"}
+                                        st.rerun()
+                            else:
+                                in_val_m = st.text_input("뜻 입력", key=f"ans_m_{index}", placeholder="Type...", label_visibility="collapsed")
+                                cm_btn, cm_cancel = st.columns(2)
+                                with cm_btn:
+                                    if st.button("확인", key=f"chk_m_{index}"):
+                                        valid_meanings = [m.strip() for m in clean_meaning.split(",")]
+                                        if in_val_m.strip() in valid_meanings:
+                                            st.session_state.study_states[m_key] = {"mode": "show", "status": "correct"}
+                                        else:
+                                            st.session_state.study_states[m_key]["status"] = "wrong"
+                                        st.rerun()
+                                with cm_cancel:
+                                    if st.button("취소", key=f"cnl_m_{index}"):
+                                        st.session_state.study_states[m_key] = {"mode": "show", "status": "none"}
+                                        st.rerun()
+                                if state_m["status"] == "wrong":
+                                    st.markdown("<span class='txt-wrong'>❌ 다시 해보세요!</span>", unsafe_allow_html=True)
+                                    
+                        # 🔊 [오디오 재생 영역]
+                        with col_audio_area:
                             audio_bytes = get_us_audio_bytes(clean_word)
                             st.audio(audio_bytes, format="audio/mp3")
                             
