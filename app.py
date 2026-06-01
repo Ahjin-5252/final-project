@@ -2,8 +2,10 @@ import streamlit as st
 import pandas as pd
 import random
 import time
+from gtts import gTTS
+import io
 
-# 1. 페이지 설정 및 미니멀 UI/애니메이션 정의
+# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
 
 st.markdown("""
@@ -121,7 +123,7 @@ def refresh_balloons(matched_word=None):
             "class": f"w{i+1}"
         })
 
-# 💡 [해결의 핵심] 엔터를 쳤을 때 오작동 없이 값을 검증하고 즉시 비우는 안전 콜백 함수
+# 안전 채점 콜백 함수
 def check_answer_callback():
     user_answer = st.session_state.game_input_box.strip()
     if user_answer:
@@ -133,8 +135,16 @@ def check_answer_callback():
                 st.session_state.just_popped_word = b["word"]
                 st.session_state.target_item = {"word": b["word"], "meaning": b["meaning"]}
                 break
-    # 채점이 끝나면 세션 내 입력창 위젯 텍스트를 즉시 공백으로 리셋
     st.session_state.game_input_box = ""
+
+# 💡 표준 미국식 발음(Standard American Accent) 오디오 생성 함수
+def play_us_pronunciation(text):
+    # lang='en', tld='com' 조합이 gTTS에서 구글 US(미국) 표준 영어 발음을 의미합니다.
+    tts = gTTS(text=text, lang='en', tld='com', slow=False)
+    fp = io.BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    return fp
 
 # --- 화면 구현 ---
 
@@ -179,11 +189,26 @@ else:
         st.write("---")
         main_col, side_col = st.columns([4, 1])
         with side_col:
+            # 💡 제한 시간이 끝난 뒤 복습 모달 호출
             if st.button("📚 단어학습하기", use_container_width=True):
-                @st.dialog("📖 오늘 배울 영단어 리스트")
+                @st.dialog("📖 오늘 배울 영단어 리스트 (미국식 발음 지원)")
                 def show_study_records():
-                    st.write("오늘 게임에 나온 단어들을 다시 복습하며 실력을 다져봅시다!")
-                    st.table(df_origin[["word", "meaning"]])
+                    st.write("단어 옆의 재생 버튼을 누르면 미국식 표준 발음을 들을 수 있습니다!")
+                    st.write("")
+                    
+                    # 학생들이 보기 편하도록 표 디자인 대신 오디오 매칭 레이아웃으로 변경
+                    for index, row in df_origin.iterrows():
+                        col_word, col_meaning, col_audio = st.columns([2, 2, 3])
+                        with col_word:
+                            st.markdown(f"**{row['word']}**")
+                        with col_meaning:
+                            st.write(row['meaning'])
+                        with col_audio:
+                            # gTTS 오디오 스트림 가져오기
+                            audio_fp = play_us_pronunciation(row['word'])
+                            # 미니 오디오 플레이어 탑재
+                            st.audio(audio_fp, format="audio/mp3")
+                        st.write("---")
                 show_study_records()
             
     else:
@@ -206,7 +231,7 @@ else:
         b_html += "</div>"
         st.markdown(b_html, unsafe_allow_html=True)
         
-        # 💡 정답 입력창 (on_change 콜백 함수를 연결하여 무조건 채점 후 비워지도록 제어)
+        # 정답 입력창
         st.text_input(
             "", 
             key="game_input_box",
@@ -214,7 +239,6 @@ else:
             on_change=check_answer_callback
         )
         
-        # 정답 단어 애니메이션 연출을 위한 딜레이 루틴
         if st.session_state.just_popped_word:
             time.sleep(0.3)
             refresh_balloons(matched_word=st.session_state.target_item)
