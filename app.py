@@ -2,10 +2,8 @@ import streamlit as st
 import pandas as pd
 import random
 import time
-from gtts import gTTS
-import io
 
-# 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
+# 1. 페이지 설정 및 미니멀 UI/애니메이션 정의
 st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
 
 st.markdown("""
@@ -69,6 +67,22 @@ st.markdown("""
     div.stTextInput {
         margin-top: 30px;
     }
+
+    /* 🔊 발음 재생 버튼 스타일링 */
+    .tts-button {
+        background-color: #2AM2FF;
+        color: white;
+        border: none;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .tts-button:hover {
+        background-color: #008be3;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -96,53 +110,85 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "active_words" not in st.session_state:
     st.session_state.active_words = []
-if "word_pool" not in st.session_state:
-    st.session_state.word_pool = []
+if "used_words" not in st.session_state:
+    st.session_state.used_words = []
 if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
 
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
-def refresh_balloons(matched_word=None):
-    if matched_word and matched_word in st.session_state.word_pool:
-        st.session_state.word_pool.remove(matched_word)
-        
-    if len(st.session_state.word_pool) < 3:
-        st.session_state.word_pool = df_origin.to_dict(orient="records")
-        random.shuffle(st.session_state.word_pool)
-        
-    selected = st.session_state.word_pool[:3]
-    st.session_state.word_pool = st.session_state.word_pool[3:] + selected
+def replace_single_word(index_to_replace):
+    remaining_pool = [
+        item for item in df_origin.to_dict(orient="records")
+        if item["word"] not in st.session_state.used_words
+        and item["word"] not in [w["word"] for w in st.session_state.active_words if w]
+    ]
     
+    if not remaining_pool:
+        remaining_pool = [
+            item for item in df_origin.to_dict(orient="records")
+            if item["word"] not in [w["word"] for w in st.session_state.active_words if w]
+        ]
+        if not remaining_pool:
+            remaining_pool = df_origin.to_dict(orient="records")
+            
+    new_item = random.choice(remaining_pool)
+    
+    word_info = {
+        "word": new_item["word"],
+        "meaning": new_item["meaning"],
+        "color": COLORS[random.randint(0, len(COLORS)-1)],
+        "class": f"w{index_to_replace + 1}"
+    }
+    
+    if len(st.session_state.active_words) < 3:
+        st.session_state.active_words.append(word_info)
+    else:
+        st.session_state.active_words[index_to_replace] = word_info
+
+def init_game_words():
     st.session_state.active_words = []
-    for i, item in enumerate(selected):
-        st.session_state.active_words.append({
-            "word": item["word"],
-            "meaning": item["meaning"],
-            "color": COLORS[random.randint(0, len(COLORS)-1)],
-            "class": f"w{i+1}"
-        })
+    st.session_state.used_words = []
+    for i in range(3):
+        replace_single_word(i)
 
 # 안전 채점 콜백 함수
 def check_answer_callback():
     user_answer = st.session_state.game_input_box.strip()
     if user_answer:
-        for b in st.session_state.active_words:
+        for i, b in enumerate(st.session_state.active_words):
             valid_meanings = [m.strip() for m in b["meaning"].split(",")]
             
             if user_answer in valid_meanings:
                 st.session_state.score += 1
                 st.session_state.just_popped_word = b["word"]
-                st.session_state.target_item = {"word": b["word"], "meaning": b["meaning"]}
+                st.session_state.popped_index = i
+                st.session_state.used_words.append(b["word"])
                 break
     st.session_state.game_input_box = ""
 
-# 💡 [수정] 오디오 바이너리 데이터를 안전하게 브라우저로 전달하는 로직
-def get_us_audio_bytes(text):
-    tts = gTTS(text=text, lang='en', tld='com', slow=False)
-    fp = io.BytesIO()
-    tts.write_to_fp(fp)
-    return fp.getvalue() # 오디오 스트림을 고정된 바이트 배열로 추출하여 전달
+# 💡 [핵심 구현] 브라우저 자체 음성 합성 엔진(Web Speech API)을 호출하는 HTML/JS 생성 함수
+def generate_browser_tts_html(text, btn_id):
+    # 미국식 표준 영어(en-US) 발음을 브라우저에 직접 지시하는 자바스크립트 코드
+    html_code = f"""
+    <button class="tts-button" onclick="speak_{btn_id}()">🔊 Listen</button>
+    <script>
+    def speak_{btn_id}() {{
+        if ('speechSynthesis' in window) {{
+            window.speechSynthesis.cancel(); // 이전 음성 겹침 방지
+            var speech = new SpeechSynthesisUtterance("{text}");
+            speech.lang = "en-US"; // 표준 미국식 액센트 지정
+            speech.rate = 0.9;     // 학생들이 듣기 편하도록 살짝 여유로운 속도
+            speech.pitch = 1.0;
+            window.speechSynthesis.speak(speech);
+        }} else {{
+            alert("이 브라우저는 음성 재생을 지원하지 않습니다.");
+        }}
+    }}
+    speak_{btn_id}();
+    </script>
+    """
+    return html_code
 
 # --- 화면 구현 ---
 
@@ -162,9 +208,7 @@ if not st.session_state.game_started:
             st.session_state.start_time = time.time()
             st.session_state.score = 0
             st.session_state.just_popped_word = None
-            st.session_state.word_pool = df_origin.to_dict(orient="records")
-            random.shuffle(st.session_state.word_pool)
-            refresh_balloons()
+            init_game_words()
             st.rerun()
 
 # [화면 2] 게임 시작 후 화면
@@ -181,7 +225,8 @@ else:
             st.session_state.game_started = False
             st.session_state.start_time = None
             st.session_state.just_popped_word = None
-            st.session_state.word_pool = []
+            st.session_state.active_words = []
+            st.session_state.used_words = []
             st.rerun()
             
         st.write("---")
@@ -190,19 +235,19 @@ else:
             if st.button("📚 단어학습하기", use_container_width=True):
                 @st.dialog("📖 오늘 배울 영단어 리스트 (미국식 발음 지원)")
                 def show_study_records():
-                    st.write("단어 옆의 재생 버튼을 누르면 미국식 표준 발음을 들을 수 있습니다!")
+                    st.write("단어 옆의 Listen 버튼을 누르면 브라우저 음성으로 발음이 재생됩니다!")
                     st.write("")
                     
                     for index, row in df_origin.iterrows():
-                        col_word, col_meaning, col_audio = st.columns([2, 2, 3])
+                        col_word, col_meaning, col_audio = st.columns([2, 2, 2])
                         with col_word:
                             st.markdown(f"**{row['word']}**")
                         with col_meaning:
                             st.write(row['meaning'])
                         with col_audio:
-                            # 💡 [수정] 오디오 포인터가 초기화되지 않도록 완전히 정형화된 바이트 값 전송
-                            audio_bytes = get_us_audio_bytes(row['word'])
-                            st.audio(audio_bytes, format="audio/mp3")
+                            # 💡 브라우저 내장 자바스크립트 스피커 버튼을 화면에 직접 임베딩
+                            tts_html = generate_browser_tts_html(row['word'], index)
+                            st.components.v1.html(tts_html, height=45)
                         st.write("---")
                 show_study_records()
             
@@ -236,7 +281,7 @@ else:
         
         if st.session_state.just_popped_word:
             time.sleep(0.3)
-            refresh_balloons(matched_word=st.session_state.target_item)
+            refresh_balloons(st.session_state.popped_index)
             st.session_state.just_popped_word = None
             st.rerun()
         
