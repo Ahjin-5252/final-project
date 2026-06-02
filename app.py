@@ -107,6 +107,9 @@ if "popped_index" not in st.session_state:
     st.session_state.popped_index = None
 if "study_states" not in st.session_state:
     st.session_state.study_states = {}
+# 💡 단어학습하기 창이 켜져 있는지 추적하기 위한 플래그 상태 저장소 생성
+if "dialog_open" not in st.session_state:
+    st.session_state.dialog_open = False
 
 COLORS = ["#2AM2FF", "#FF3B6F", "#2BD9A5", "#FFAA00", "#9B5DE5"]
 
@@ -189,13 +192,14 @@ if not st.session_state.game_started:
             st.session_state.score = 0
             st.session_state.just_popped_word = None
             st.session_state.popped_index = None
+            st.session_state.dialog_open = False
             init_game_words()
             st.rerun()
 
 # [화면 2] 게임 시작 후 화면
 else:
     elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = max(0, 70 - int(elapsed_time))
+    remaining_time = max(0, 45 - int(elapsed_time))
     
     if remaining_time <= 0:
         st.title("🚨 Game Over")
@@ -210,12 +214,15 @@ else:
             st.session_state.active_words = []
             st.session_state.used_words = []
             st.session_state.study_states = {}
+            st.session_state.dialog_open = False
             st.rerun()
             
         st.write("---")
         main_col, side_col = st.columns([4, 1])
         with side_col:
             if st.button("📚 단어학습하기", use_container_width=True):
+                st.session_state.dialog_open = True # 플래그 활성화
+                
                 @st.dialog("📖 Word List")
                 def show_study_records():
                     st.write("지우기 버튼을 누르면 단어나 뜻이 빈칸으로 변합니다. 직접 맞춰보세요!")
@@ -246,10 +253,10 @@ else:
                                     else:
                                         st.write(clean_word)
                                 with inner_c2:
-                                    # 💡 [버그 수정] size="small" 제거 및 레이아웃 최적화
+                                    # 💡 [해결] 팝업 내부의 버튼 클릭 후 리런을 하되 창이 유실되지 않게 처리
                                     if st.button("지우기", key=f"btn_del_w_{index}", use_container_width=True):
                                         st.session_state.study_states[w_key] = {"mode": "edit", "status": "none"}
-                                        st.rerun()
+                                        st.rerun(scope="fragment") # 다이얼로그 안에서만 컨텍스트 새로고침
                             else:
                                 in_val = st.text_input("단어 입력", key=f"ans_w_{index}", placeholder="Type...", label_visibility="collapsed")
                                 c_btn, c_cancel = st.columns(2)
@@ -259,11 +266,11 @@ else:
                                             st.session_state.study_states[w_key] = {"mode": "show", "status": "correct"}
                                         else:
                                             st.session_state.study_states[w_key]["status"] = "wrong"
-                                        st.rerun()
+                                        st.rerun(scope="fragment")
                                 with c_cancel:
                                     if st.button("취소", key=f"cnl_w_{index}", use_container_width=True):
                                         st.session_state.study_states[w_key] = {"mode": "show", "status": "none"}
-                                        st.rerun()
+                                        st.rerun(scope="fragment")
                                 if state["status"] == "wrong":
                                     st.markdown("<span class='txt-wrong'>❌ 다시 해보세요!</span>", unsafe_allow_html=True)
                         
@@ -278,10 +285,9 @@ else:
                                     else:
                                         st.write(clean_meaning)
                                 with inner_m2:
-                                    # 💡 [버그 수정] size="small" 제거 및 레이아웃 최적화
                                     if st.button("지우기", key=f"btn_del_m_{index}", use_container_width=True):
                                         st.session_state.study_states[m_key] = {"mode": "edit", "status": "none"}
-                                        st.rerun()
+                                        st.rerun(scope="fragment")
                             else:
                                 in_val_m = st.text_input("뜻 입력", key=f"ans_m_{index}", placeholder="Type...", label_visibility="collapsed")
                                 cm_btn, cm_cancel = st.columns(2)
@@ -292,11 +298,11 @@ else:
                                             st.session_state.study_states[m_key] = {"mode": "show", "status": "correct"}
                                         else:
                                             st.session_state.study_states[m_key]["status"] = "wrong"
-                                        st.rerun()
+                                        st.rerun(scope="fragment")
                                 with cm_cancel:
                                     if st.button("취소", key=f"cnl_m_{index}", use_container_width=True):
                                         st.session_state.study_states[m_key] = {"mode": "show", "status": "none"}
-                                        st.rerun()
+                                        st.rerun(scope="fragment")
                                 if state_m["status"] == "wrong":
                                     st.markdown("<span class='txt-wrong'>❌ 다시 해보세요!</span>", unsafe_allow_html=True)
                                     
@@ -318,31 +324,32 @@ else:
             
         st.write("---")
         
-        # 캔버스 렌더링
-        b_html = "<div class='game-canvas'>"
-        for b in st.session_state.active_words:
-            if st.session_state.just_popped_word == b["word"]:
-                b_html += f"<div class='floating-word popped-word' style='color: {b['color']};'>{b['word']}</div>"
-            else:
-                b_html += f"<div class='floating-word {b['class']}' style='color: {b['color']};'>{b['word']}</div>"
-        b_html += "</div>"
-        st.markdown(b_html, unsafe_allow_html=True)
-        
-        # 정답 입력창
-        st.text_input(
-            "", 
-            key="game_input_box",
-            placeholder="Type here...",
-            on_change=check_answer_callback
-        )
-        
-        p_idx = st.session_state.get("popped_index", None)
-        if st.session_state.just_popped_word and p_idx is not None:
-            time.sleep(0.3)
-            replace_single_word(p_idx)
-            st.session_state.just_popped_word = None
-            st.session_state.popped_index = None
-            st.rerun()
+        # 💡 [요구사항 반영 2] 단어학습하기 창(dialog_open)이 열려있지 않을 때만 게임 화면과 단어 애니메이션을 출력
+        if not st.session_state.dialog_open:
+            b_html = "<div class='game-canvas'>"
+            for b in st.session_state.active_words:
+                if st.session_state.just_popped_word == b["word"]:
+                    b_html += f"<div class='floating-word popped-word' style='color: {b['color']};'>{b['word']}</div>"
+                else:
+                    b_html += f"<div class='floating-word {b['class']}' style='color: {b['color']};'>{b['word']}</div>"
+            b_html += "</div>"
+            st.markdown(b_html, unsafe_allow_html=True)
+            
+            # 정답 입력창
+            st.text_input(
+                "", 
+                key="game_input_box",
+                placeholder="Type here...",
+                on_change=check_answer_callback
+            )
+            
+            p_idx = st.session_state.get("popped_index", None)
+            if st.session_state.just_popped_word and p_idx is not None:
+                time.sleep(0.3)
+                replace_single_word(p_idx)
+                st.session_state.just_popped_word = None
+                st.session_state.popped_index = None
+                st.rerun()
         
         time.sleep(0.4)
         st.rerun()
