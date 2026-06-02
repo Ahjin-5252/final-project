@@ -107,7 +107,6 @@ if "popped_index" not in st.session_state:
     st.session_state.popped_index = None
 if "study_states" not in st.session_state:
     st.session_state.study_states = {}
-# 💡 단어학습하기 창이 켜져 있는지 추적하기 위한 플래그 상태 저장소 생성
 if "dialog_open" not in st.session_state:
     st.session_state.dialog_open = False
 
@@ -199,7 +198,7 @@ if not st.session_state.game_started:
 # [화면 2] 게임 시작 후 화면
 else:
     elapsed_time = time.time() - st.session_state.start_time
-    remaining_time = max(0, 45 - int(elapsed_time))
+    remaining_time = max(0, 50 - int(elapsed_time)) # 💡 기존 45초에서 50초 제한으로 상향 변경 완료
     
     if remaining_time <= 0:
         st.title("🚨 Game Over")
@@ -221,7 +220,7 @@ else:
         main_col, side_col = st.columns([4, 1])
         with side_col:
             if st.button("📚 단어학습하기", use_container_width=True):
-                st.session_state.dialog_open = True # 플래그 활성화
+                st.session_state.dialog_open = True
                 
                 @st.dialog("📖 Word List")
                 def show_study_records():
@@ -253,10 +252,9 @@ else:
                                     else:
                                         st.write(clean_word)
                                 with inner_c2:
-                                    # 💡 [해결] 팝업 내부의 버튼 클릭 후 리런을 하되 창이 유실되지 않게 처리
                                     if st.button("지우기", key=f"btn_del_w_{index}", use_container_width=True):
                                         st.session_state.study_states[w_key] = {"mode": "edit", "status": "none"}
-                                        st.rerun(scope="fragment") # 다이얼로그 안에서만 컨텍스트 새로고침
+                                        st.rerun(scope="fragment")
                             else:
                                 in_val = st.text_input("단어 입력", key=f"ans_w_{index}", placeholder="Type...", label_visibility="collapsed")
                                 c_btn, c_cancel = st.columns(2)
@@ -324,7 +322,7 @@ else:
             
         st.write("---")
         
-        # 💡 [요구사항 반영 2] 단어학습하기 창(dialog_open)이 열려있지 않을 때만 게임 화면과 단어 애니메이션을 출력
+        # 단어학습하기 팝업 창이 열려있지 않을 때만 하강 애니메이션 활성화
         if not st.session_state.dialog_open:
             b_html = "<div class='game-canvas'>"
             for b in st.session_state.active_words:
