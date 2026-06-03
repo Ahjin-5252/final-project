@@ -6,7 +6,7 @@ from gtts import gTTS
 import io
 
 # 1. 페이지 설정 및 이미지 느낌의 미니멀 UI/애니메이션 정의
-st.set_page_config(page_title="아진T와 함께하는 단어 게임", page_icon="🕹️", layout="centered")
+st.set_page_config(page_title="💓아진T와 함께하는 단어 게임💓", page_icon="🕹️", layout="centered")
 
 st.markdown("""
     <style>
@@ -132,7 +132,7 @@ def get_us_audio_bytes(text):
     return fp.getvalue()
 
 # --- 화면 구현 ---
-st.title("🕹️ 아진T와 함께하는 단어 게임")
+st.title("🕹️ 아진T와 함께하는 단어 게임💕")
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
@@ -161,7 +161,7 @@ else:
     # ⏱️ 게임 종료 상태
     if remaining_time <= 0:
         st.title("🚨 Game Over")
-        st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 점수는 **{st.session_state.score}점**입니다.")
+        st.error(f"게임이 끝났습니다😉! {st.session_state.user_name}님의 최종 점수는 **{st.session_state.score}점**입니다.👍")
         
         if st.button("다시 도전하기", use_container_width=True):
             st.session_state.game_started = False
@@ -180,7 +180,7 @@ else:
         if st.button("📚 단어학습하기", use_container_width=True):
             @st.dialog("📖 Word List")
             def show_study_records():
-                st.write("지우기 버튼을 누르면 단어나 뜻이 빈칸으로 변합니다. 직접 맞춰보세요!")
+                st.write("지우기 버튼을 누르면 단어나 뜻이 빈칸으로 변합니다. 정답은 파란색, 정답이 아니면 빨간색으로 표시돼요. 스스로 공부해봐요😄")
                 st.write("---")
                 
                 for index, row in df_game.iterrows():
