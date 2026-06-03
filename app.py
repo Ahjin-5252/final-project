@@ -67,7 +67,6 @@ if "just_popped_word" not in st.session_state:
     st.session_state.just_popped_word = None
 if "popped_index" not in st.session_state:
     st.session_state.popped_index = None
-# 💡 단어가 바닥에 닿는 주기를 체크하기 위한 타임 스탬프 저장소
 if "last_refresh_time" not in st.session_state:
     st.session_state.last_refresh_time = None
 
@@ -113,7 +112,6 @@ def check_answer_callback():
                 st.session_state.just_popped_word = b["word"]
                 st.session_state.popped_index = i
                 st.session_state.used_words.append(b["word"])
-                # 맞춘 경우 단어가 새로 내려오므로 타이머 리셋
                 st.session_state.last_refresh_time = time.time()
                 break
     st.session_state.game_input_box = ""
@@ -123,8 +121,8 @@ st.title("🕹️ 아진T와 함께하는 단어 게임")
 
 # [화면 1] 로그인 및 시작 전 화면
 if not st.session_state.game_started:
+    # 🧼 퀴즈 안내 문구를 완전히 삭제하고 깔끔하게 수정 완료
     st.write("위에서 내려오는 영단어의 뜻을 시간 내에 맞춰보세요!")
-    st.write("💡 **본문 내용 확인 퀴즈**를 풀고 싶다면 왼쪽 사이드바 메뉴를 클릭해 이동하세요.")
     
     name_input = st.text_input("이름을 입력하세요:", value=st.session_state.user_name)
     if st.button("Start", use_container_width=True):
@@ -147,7 +145,6 @@ else:
     
     if remaining_time <= 0:
         st.title("🚨 Game Over")
-        # 💡 [요구사항 반영] st.balloons() 라인을 삭제하여 무조건 풍선이 터지지 않도록 조치 완료
         st.error(f"게임이 끝났습니다! {st.session_state.user_name}님의 최종 점수는 **{st.session_state.score}점**입니다.")
         if st.button("다시 도전하기", use_container_width=True):
             st.session_state.game_started = False
@@ -159,10 +156,10 @@ else:
             st.session_state.last_refresh_time = None
             st.rerun()
     else:
-        # 💡 [요구사항 반영] 3단어가 바닥에 다 내려갈 때까지(약 12초) 못 맞추면 새로운 단어 세트로 갱신하는 로직
+        # 3단어가 바닥에 다 내려갈 때까지 못 맞추면 새로운 단어 세트로 갱신
         if time.time() - st.session_state.last_refresh_time > 12.0:
             for b in st.session_state.active_words:
-                st.session_state.used_words.append(b["word"]) # 못 맞춘 단어는 사용 처리하여 넘김
+                st.session_state.used_words.append(b["word"])
             for i in range(3):
                 replace_single_word(i)
             st.session_state.last_refresh_time = time.time()
