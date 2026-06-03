@@ -41,7 +41,6 @@ st.markdown("""
 @st.cache_data
 def load_game_data():
     try:
-        # 💡 지시하신 대로 파일명을 data.csv로 수정하여 연동했습니다.
         return pd.read_csv("data.csv")
     except:
         return pd.DataFrame({
@@ -156,5 +155,44 @@ else:
             st.session_state.last_refresh_time = None
             st.rerun()
     else:
-        # 3단어가 바닥에 다 내려갈 때까지 못 맞추면 새로운 단어 세트로 갱신
-        if time.time() - st.session_state.last_refresh_time >
+        # 💡 [교정 완료] 잘려 있던 조건문 매칭 버그를 해결했습니다.
+        if time.time() - st.session_state.last_refresh_time > 12.0:
+            for b in st.session_state.active_words:
+                st.session_state.used_words.append(b["word"])
+            for i in range(3):
+                replace_single_word(i)
+            st.session_state.last_refresh_time = time.time()
+            st.rerun()
+
+        # 대시보드 스코어 레이아웃
+        col1, col2 = st.columns(2)
+        with col1: 
+            st.markdown(f"<div class='score-box'>👤 이름: {st.session_state.user_name}</div>", unsafe_allow_html=True)
+        with col2: 
+            st.markdown(f"<div class='score-box'>⭐ SCORE: {st.session_state.score}점 | ⏱️ {remaining_time}초</div>", unsafe_allow_html=True)
+        st.write("---")
+        
+        # 메인 게임 캔버스 출력
+        b_html = "<div class='game-canvas'>"
+        for b in st.session_state.active_words:
+            if st.session_state.just_popped_word == b["word"]:
+                b_html += f"<div class='floating-word popped-word' style='color: {b['color']};'>{b['word']}</div>"
+            else:
+                b_html += f"<div class='floating-word {b['class']}' style='color: {b['color']};'>{b['word']}</div>"
+        b_html += "</div>"
+        st.markdown(b_html, unsafe_allow_html=True)
+        
+        # 정답 입력을 위한 입력 상자
+        st.text_input("", key="game_input_box", placeholder="Type here...", on_change=check_answer_callback)
+        
+        # 단어 폭발 및 리플레이스 트리거 연산
+        p_idx = st.session_state.get("popped_index", None)
+        if st.session_state.just_popped_word and p_idx is not None:
+            time.sleep(0.3)
+            replace_single_word(p_idx)
+            st.session_state.just_popped_word = None
+            st.session_state.popped_index = None
+            st.rerun()
+            
+        time.sleep(0.4)
+        st.rerun()
